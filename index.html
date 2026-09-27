@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>CARNIVA 2026 — Entry</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #111;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    header {
+      padding: 24px 20px 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: 1px;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      opacity: 0.65;
+      font-size: 13px;
+      letter-spacing: 2px;
+    }
+
+    .scanner-container {
+      width: 92%;
+      max-width: 450px;
+      margin: 20px auto;
+      overflow: hidden;
+      border-radius: 18px;
+      background: #fff;
+    }
+
+    #reader {
+      width: 100%;
+    }
+
+    #result {
+      width: 92%;
+      max-width: 450px;
+      margin: 20px auto;
+      padding: 25px 20px;
+      border-radius: 18px;
+      background: #222;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+
+    .checking {
+      background: #333 !important;
+    }
+
+    .valid {
+      background: #145c2a !important;
+    }
+
+    .used {
+      background: #704d12 !important;
+    }
+
+    .invalid {
+      background: #6b1717 !important;
+    }
+
+    .cancelled {
+      background: #501050 !important;
+    }
+
+    .status {
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .name {
+      font-size: 28px;
+      font-weight: bold;
+      margin-top: 12px;
+    }
+
+    .people {
+      font-size: 21px;
+      margin-top: 8px;
+    }
+
+    .ticket {
+      margin-top: 10px;
+      font-size: 13px;
+      opacity: 0.7;
+    }
+
+    .message {
+      margin-top: 10px;
+      font-size: 14px;
+      opacity: 0.85;
+    }
+
+    .ready {
+      font-size: 17px;
+      opacity: 0.7;
+    }
+
+    #startButton {
+      display: none;
+      margin: 15px auto;
+      padding: 14px 28px;
+      border: none;
+      border-radius: 12px;
+      background: #fff;
+      color: #111;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+  </style>
+</head>
+
+
+<body>
+
+  <header>
+
+    <h1>CARNIVA 2026</h1>
+
+    <div class="subtitle">
+      ENTRY CHECK-IN
+    </div>
+
+  </header>
+
+
+  <div class="scanner-container">
+
+    <div id="reader"></div>
+
+  </div>
+
+
+  <button id="startButton">
+    START CAMERA
+  </button>
+
+
+  <div id="result">
+
+    <div class="ready">
+      Ready to scan
+    </div>
+
+  </div>
+
+
+  <script>
+
+    /* =====================================================
+       CARNIVA 2026 — CONFIGURATION
+       ===================================================== */
+
+    const API_URL =
+      "https://script.google.com/macros/s/AKfycbzozYAw9UGr43zl2Urk1xdaec-K3A2ath9j6BSCHonut7gTl_kHETCpqNyeYauzoiQp/exec";
+
+
+    let scanner = null;
+
+    let scanning = true;
+
+    let processing = false;
+
+
+    /* =====================================================
+       RESULT DISPLAY
+       ===================================================== */
+
+    function showChecking() {
+
+      const result =
+        document.getElementById("result");
+
+      result.className = "checking";
+
+      result.innerHTML =
+        '<div class="status">' +
+        'CHECKING TICKET...' +
+        '</div>';
+    }
+
+
+    function showReady() {
+
+      const result =
+        document.getElementById("result");
+
+      result.className = "";
+
+      result.innerHTML =
+        '<div class="ready">' +
+        'Ready for next ticket' +
+        '</div>';
+    }
+
+
+    function showResult(data) {
+
+      const result =
+        document.getElementById("result");
+
+
+      if (data.type === "VALID") {
+
+        result.className = "valid";
+
+        result.innerHTML =
+
+          '<div class="status">' +
+          '✓ ENTRY APPROVED' +
+          '</div>' +
+
+          '<div class="name">' +
+          escapeHtml(data.name) +
+          '</div>' +
+
+          '<div class="people">' +
+          escapeHtml(data.totalPeople) +
+          ' PEOPLE' +
+          '</div>' +
+
+          '<div class="ticket">' +
+          escapeHtml(data.ticketId) +
+          '</div>';
+
+
+      } else if (data.type === "USED") {
+
+        result.className = "used";
+
+        result.innerHTML =
+
+          '<div class="status">' +
+          '⚠ ALREADY CHECKED IN' +
+          '</div>' +
+
+          '<div class="name">' +
+          escapeHtml(data.name) +
+          '</div>' +
+
+          '<div class="people">' +
+          escapeHtml(data.totalPeople) +
+          ' PEOPLE' +
+          '</div>' +
+
+          '<div class="ticket">' +
+          escapeHtml(data.ticketId) +
+          '</div>';
+
+
+      } else if (data.type === "CANCELLED") {
+
+        result.className = "cancelled";
+
+        result.innerHTML =
+
+          '<div class="status">' +
+          '✕ CANCELLED TICKET' +
+          '</div>' +
+
+          '<div class="name">' +
+          escapeHtml(data.name) +
+          '</div>' +
+
+          '<div class="message">' +
+          'Entry is not permitted.' +
+          '</div>';
+
+
+      } else {
+
+        result.className = "invalid";
+
+        result.innerHTML =
+
+          '<div class="status">' +
+          '✕ INVALID TICKET' +
+          '</div>' +
+
+          '<div class="message">' +
+          escapeHtml(
+            data.message ||
+            "Ticket could not be verified."
+          ) +
+          '</div>';
+      }
+
+
+      setTimeout(function() {
+
+        processing = false;
+
+        scanning = true;
+
+        showReady();
+
+      }, 3000);
+    }
+
+
+    /* =====================================================
+       API CALL
+       ===================================================== */
+
+    function checkTicket(ticketId) {
+
+      showChecking();
+
+      const url =
+        API_URL +
+        "?action=CHECK&ticketId=" +
+        encodeURIComponent(ticketId);
+
+
+      fetch(url, {
+        method: "GET",
+        cache: "no-store"
+      })
+
+      .then(function(response) {
+
+        if (!response.ok) {
+
+          throw new Error(
+            "Server returned " +
+            response.status
+          );
+        }
+
+        return response.json();
+
+      })
+
+      .then(function(data) {
+
+        showResult(data);
+
+      })
+
+      .catch(function(error) {
+
+        const result =
+          document.getElementById("result");
+
+        result.className = "invalid";
+
+        result.innerHTML =
+
+          '<div class="status">' +
+          '⚠ CONNECTION ERROR' +
+          '</div>' +
+
+          '<div class="message">' +
+          escapeHtml(
+            error.message
+          ) +
+          '</div>';
+
+
+        setTimeout(function() {
+
+          processing = false;
+
+          scanning = true;
+
+          showReady();
+
+        }, 3000);
+
+      });
+    }
+
+
+    /* =====================================================
+       QR SCAN
+       ===================================================== */
+
+    function onScanSuccess(decodedText) {
+
+      if (!scanning || processing) {
+        return;
+      }
+
+      scanning = false;
+
+      processing = true;
+
+      const ticketId =
+        String(decodedText)
+          .trim();
+
+      if (!ticketId) {
+
+        processing = false;
+
+        scanning = true;
+
+        return;
+      }
+
+      checkTicket(ticketId);
+    }
+
+
+    function onScanFailure(error) {
+      // Normal scanning failures are ignored.
+    }
+
+
+    /* =====================================================
+       HTML ESCAPE
+       ===================================================== */
+
+    function escapeHtml(value) {
+
+      return String(value)
+
+        .replace(
+          /&/g,
+          "&amp;"
+        )
+
+        .replace(
+          /</g,
+          "&lt;"
+        )
+
+        .replace(
+          />/g,
+          "&gt;"
+        )
+
+        .replace(
+          /"/g,
+          "&quot;"
+        )
+
+        .replace(
+          /'/g,
+          "&#039;"
+        );
+    }
+
+
+    /* =====================================================
+       START SCANNER
+       ===================================================== */
+
+    function startScanner() {
+
+      if (scanner) {
+        return;
+      }
+
+      scanner =
+        new Html5QrcodeScanner(
+
+          "reader",
+
+          {
+            fps: 10,
+
+            qrbox: {
+              width: 250,
+              height: 250
+            },
+
+            rememberLastUsedCamera: true
+          },
+
+          false
+        );
+
+
+      scanner.render(
+        onScanSuccess,
+        onScanFailure
+      );
+    }
+
+
+    /* =====================================================
+       INITIALIZE
+       ===================================================== */
+
+    window.addEventListener(
+      "load",
+      function() {
+
+        startScanner();
+
+      }
+    );
+
+  </script>
+
+</body>
+</html>
